@@ -1,0 +1,6 @@
+E:\Training_status\bin\TrainingStatusPortal.dll
+E:\Training_status\bin\TrainingStatusPortal.pdb
+E:\Training_status\obj\Debug\TrainingStatusPortal.dll
+E:\Training_status\obj\Debug\TrainingStatusPortal.pdb
+E:\Training_status\bin\Oracle.ManagedDataAccess.dll
+E:\Training_status\obj\Debug\TrainingStatusPortal.csprojResolveAssemblyReference.cache

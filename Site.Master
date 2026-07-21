@@ -1,0 +1,89 @@
+<%@ Master Language="C#" AutoEventWireup="true" CodeBehind="Site.Master.cs" Inherits="TrainingStatusPortal.SiteMaster" %>
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head runat="server">
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <title>Employee Training Status Portal</title>
+    <!-- Custom fonts -->
+    <link href="Static/fontawesome-free/css/all.min.css" rel="stylesheet" type="text/css" />
+    <!-- SB Admin 2 CSS -->
+    <link href="Static/css/sb-admin-2.min.css" rel="stylesheet" />
+    
+    <asp:ContentPlaceHolder ID="HeadContent" runat="server">
+    </asp:ContentPlaceHolder>
+</head>
+<body id="page-top">
+    <form id="form1" runat="server">
+        <asp:ScriptManager ID="ScriptManager1" runat="server" EnablePageMethods="true" />
+        <div id="wrapper">
+
+            <!-- Content Wrapper -->
+            <div id="content-wrapper" class="d-flex flex-column min-vh-100">
+
+                <!-- Main Content -->
+                <div id="content">
+
+                    <!-- Topbar Navigation -->
+                    <nav class="navbar navbar-expand navbar-light bg-white topbar mb-4 static-top shadow border-bottom border-primary">
+                        <a class="navbar-brand d-flex align-items-center" href="TrainingStatus.aspx">
+                            <img src="Static/Images/newlrdelogo.png" alt="LRDE" style="height: 40px;" class="mr-2" />
+                            <span class="font-weight-bold text-primary">Employee Training Status Portal</span>
+                        </a>
+
+                        <!-- Topbar Navbar Right -->
+                        <ul class="navbar-nav ml-auto align-items-center">
+                            <li class="nav-item mr-3">
+                                <span class="badge badge-primary px-3 py-2" style="font-size: 0.85rem;">
+                                    <i class="fas fa-user mr-1"></i>
+                                    <asp:Literal ID="litUserInfo" runat="server"></asp:Literal>
+                                </span>
+                            </li>
+                            <li class="nav-item">
+                                <asp:LinkButton ID="btnLogout" runat="server" CssClass="btn btn-outline-danger btn-sm font-weight-bold" OnClick="btnLogout_Click">
+                                    <i class="fas fa-sign-out-alt mr-1"></i>Logout
+                                </asp:LinkButton>
+                            </li>
+                        </ul>
+                    </nav>
+                    <!-- End of Topbar -->
+
+                    <!-- Begin Page Content -->
+                    <div class="container-fluid px-4">
+                        <asp:ContentPlaceHolder ID="MainContent" runat="server">
+                        </asp:ContentPlaceHolder>
+                    </div>
+                    <!-- /.container-fluid -->
+
+                </div>
+                <!-- End of Main Content -->
+
+                <!-- Footer -->
+                <footer class="sticky-footer bg-white mt-auto py-3 border-top">
+                    <div class="container my-auto">
+                        <div class="copyright text-center my-auto">
+                            <span class="text-dark font-weight-bold">LRDE / DRDO &copy; 2026 - Employee Training Status Portal | Designed &amp; Developed By D-KRM/ITISG</span>
+                        </div>
+                    </div>
+                </footer>
+                <!-- End of Footer -->
+
+            </div>
+            <!-- End of Content Wrapper -->
+
+        </div>
+        <!-- End of Page Wrapper -->
+
+        <!-- JS Scripts -->
+        <script src="Static/jquery/jquery.min.js"></script>
+        <script src="Static/bootstrap/js/bootstrap.bundle.min.js"></script>
+        <script src="Static/js/sb-admin-2.min.js"></script>
+        
+        <asp:ContentPlaceHolder ID="ScriptsContent" runat="server">
+        </asp:ContentPlaceHolder>
+    </form>
+</body>
+</html>
