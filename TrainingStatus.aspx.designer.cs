@@ -6,7 +6,7 @@ namespace TrainingStatusPortal {
         protected global::System.Web.UI.WebControls.Label lblAlertMessage;
         protected global::System.Web.UI.WebControls.DropDownList ddlCourseType;
         protected global::System.Web.UI.WebControls.DropDownList ddlCourseCategory;
-        protected global::System.Web.UI.WebControls.TextBox txtCourseName;
+        protected global::System.Web.UI.WebControls.DropDownList ddlCourseName;
         protected global::System.Web.UI.WebControls.DropDownList ddlFilterStatus;
         protected global::System.Web.UI.WebControls.TextBox txtStartDate;
         protected global::System.Web.UI.WebControls.TextBox txtEndDate;

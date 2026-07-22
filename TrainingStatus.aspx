@@ -1,4 +1,4 @@
-<%@ Page Title="Training Status Portal" Language="C#" MasterPageFile="~/Site.Master" AutoEventWireup="true" CodeBehind="TrainingStatus.aspx.cs" Inherits="TrainingStatusPortal.TrainingStatus" %>
+<%@ Page Title="Training Status Portal" Language="C#" MasterPageFile="~/Site.Master" AutoEventWireup="true" CodeBehind="TrainingStatus.aspx.cs" Inherits="TrainingStatusPortal.TrainingStatus" EnableEventValidation="false" %>
 
 <asp:Content ID="Content1" ContentPlaceHolderID="HeadContent" runat="server">
     <style>
@@ -54,6 +54,42 @@
             background-color: #ffffff;
             border-color: #2563eb;
             box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+        }
+
+        /* Autocomplete Suggestions Overlay Styling */
+        .autocomplete-suggestions {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            z-index: 1050;
+            background: #ffffff;
+            border: 1px solid #94a3b8;
+            border-radius: 0.375rem;
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.12);
+            margin-top: 4px;
+            max-height: 200px;
+            overflow-y: auto;
+            padding: 4px 0;
+        }
+
+        .autocomplete-suggestion {
+            padding: 6px 12px;
+            font-size: 0.85rem;
+            line-height: 1.35;
+            color: #334155;
+            cursor: pointer;
+            border-bottom: 1px solid #f8fafc;
+            transition: background 0.15s ease;
+        }
+
+        .autocomplete-suggestion:last-child {
+            border-bottom: none;
+        }
+
+        .autocomplete-suggestion:hover, .autocomplete-suggestion.active {
+            background-color: #2563eb;
+            color: #ffffff;
         }
 
         /* Single-Field Searchable Combobox Styling */
@@ -169,6 +205,7 @@
             border-collapse: separate;
             border-spacing: 0;
             width: 100%;
+            table-layout: fixed;
         }
 
         .custom-grid th {
@@ -178,17 +215,28 @@
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            padding: 0.75rem 1rem;
+            padding: 0.75rem 0.75rem;
             border: none;
             vertical-align: middle;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .custom-grid td {
-            font-size: 0.875rem;
+            font-size: 0.85rem;
             color: #334155;
-            padding: 0.75rem 1rem;
+            padding: 0.65rem 0.75rem;
             border-top: 1px solid #f1f5f9;
             vertical-align: middle;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .text-truncate-cell {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .custom-grid tbody tr {
@@ -221,6 +269,10 @@
             color: #0f172a;
             cursor: pointer;
             width: 100%;
+            max-width: 160px;
+            text-overflow: ellipsis;
+            overflow: hidden;
+            white-space: nowrap;
             transition: all 0.2s ease;
         }
 
@@ -389,11 +441,23 @@
                             </div>
                         </div>
 
-                        <!-- Course Name Autocomplete Filter -->
-                        <div class="col-lg-4 col-md-6 mb-3 position-relative">
-                            <label class="filter-label"><i class="fas fa-book text-primary mr-1"></i>Course Name (Autocomplete):</label>
-                            <asp:TextBox ID="txtCourseName" runat="server" CssClass="form-control form-control-custom" placeholder="Type course name to search..." autocomplete="off" clientidmode="Static" AutoPostBack="true" OnTextChanged="Filter_Changed"></asp:TextBox>
-                            <div id="courseNameSuggestions" class="autocomplete-suggestions d-none"></div>
+                        <!-- Course Name Searchable Dropdown -->
+                        <div class="col-lg-4 col-md-6 mb-3">
+                            <label class="filter-label"><i class="fas fa-book text-primary mr-1"></i>Course Name:</label>
+                            <div class="combobox-container">
+                                <asp:DropDownList ID="ddlCourseName" runat="server" CssClass="d-none" AutoPostBack="true" OnSelectedIndexChanged="Filter_Changed" clientidmode="Static">
+                                </asp:DropDownList>
+                                <div id="combo_ddlCourseName" class="combobox-field">
+                                    <span class="combobox-selected-text"></span>
+                                    <i class="fas fa-chevron-down combobox-icon"></i>
+                                </div>
+                                <div id="drop_ddlCourseName" class="combobox-dropdown d-none">
+                                    <div class="combobox-search-box">
+                                        <input type="text" class="form-control combobox-search-input" placeholder="Search course name..." autocomplete="off" />
+                                    </div>
+                                    <div class="combobox-list"></div>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Training Status Searchable Dropdown -->
@@ -449,6 +513,7 @@
                         <asp:GridView ID="gvTraining" runat="server" AutoGenerateColumns="False" 
                             CssClass="custom-grid m-0" 
                             AllowPaging="True" PageSize="20" OnPageIndexChanging="gvTraining_PageIndexChanging"
+                            AllowSorting="True" OnSorting="gvTraining_Sorting"
                             OnRowDataBound="gvTraining_RowDataBound"
                             DataKeyNames="ROW_ID">
                             <PagerStyle CssClass="pagination-custom p-3 bg-white" />
@@ -460,44 +525,56 @@
                                 </div>
                             </EmptyDataTemplate>
                             <Columns>
-                                <asp:TemplateField HeaderText="Employee Name">
+                                <asp:TemplateField HeaderText="Employee Name" HeaderStyle-Width="16%" SortExpression="EMP_NAME">
                                     <ItemTemplate>
-                                        <div class="d-flex align-items-center">
-                                            <i class="fas fa-user-circle text-primary fa-lg mr-2"></i>
-                                            <span class="font-weight-bold text-dark"><%# Eval("EMP_NAME") %></span>
+                                        <div class="d-flex align-items-center text-truncate-cell" title='<%# Eval("EMP_NAME") %>'>
+                                            <i class="fas fa-user-circle text-primary fa-lg mr-2 flex-shrink-0"></i>
+                                            <span class="font-weight-bold text-dark text-truncate"><%# Eval("EMP_NAME") %></span>
                                         </div>
                                     </ItemTemplate>
                                 </asp:TemplateField>
 
-                                <asp:TemplateField HeaderText="PCNO">
+                                <asp:TemplateField HeaderText="PCNO" HeaderStyle-Width="8%" SortExpression="PCNO">
                                     <ItemTemplate>
                                         <span class="pcno-badge"><%# Eval("PCNO") %></span>
                                     </ItemTemplate>
                                 </asp:TemplateField>
 
-                                <asp:BoundField DataField="COURSENAME" HeaderText="Course Name" ItemStyle-CssClass="font-weight-medium text-dark" />
+                                <asp:TemplateField HeaderText="Course Name" HeaderStyle-Width="22%" SortExpression="COURSENAME">
+                                    <ItemTemplate>
+                                        <div class="text-truncate-cell font-weight-medium text-dark" title='<%# Eval("COURSENAME") %>'>
+                                            <%# Eval("COURSENAME") %>
+                                        </div>
+                                    </ItemTemplate>
+                                </asp:TemplateField>
 
-                                <asp:TemplateField HeaderText="Course Type">
+                                <asp:TemplateField HeaderText="Course Type" HeaderStyle-Width="11%" SortExpression="COURSETYPE">
                                     <ItemTemplate>
                                         <%# FormatCourseType(Eval("COURSETYPE")) %>
                                     </ItemTemplate>
                                 </asp:TemplateField>
 
-                                <asp:BoundField DataField="CATEGORY_DESC" HeaderText="Course Category" />
-
-                                <asp:TemplateField HeaderText="Start Date">
+                                <asp:TemplateField HeaderText="Course Category" HeaderStyle-Width="14%" SortExpression="CATEGORY_DESC">
                                     <ItemTemplate>
-                                        <span class="text-muted"><i class="far fa-calendar-alt mr-1"></i><%# Eval("STARTDATE") != DBNull.Value && Eval("STARTDATE") != null ? string.Format("{0:dd/MM/yyyy}", Eval("STARTDATE")) : "" %></span>
+                                        <div class="text-truncate-cell" title='<%# Eval("CATEGORY_DESC") %>'>
+                                            <%# Eval("CATEGORY_DESC") %>
+                                        </div>
                                     </ItemTemplate>
                                 </asp:TemplateField>
 
-                                <asp:TemplateField HeaderText="End Date">
+                                <asp:TemplateField HeaderText="Start Date" HeaderStyle-Width="10%" ItemStyle-CssClass="text-nowrap" SortExpression="STARTDATE">
                                     <ItemTemplate>
-                                        <span class="text-muted"><i class="far fa-calendar-alt mr-1"></i><%# Eval("ENDDATE") != DBNull.Value && Eval("ENDDATE") != null ? string.Format("{0:dd/MM/yyyy}", Eval("ENDDATE")) : "" %></span>
+                                        <span class="text-muted text-nowrap"><i class="far fa-calendar-alt mr-1"></i><%# Eval("STARTDATE") != DBNull.Value && Eval("STARTDATE") != null ? string.Format("{0:dd/MM/yyyy}", Eval("STARTDATE")) : "" %></span>
                                     </ItemTemplate>
                                 </asp:TemplateField>
 
-                                <asp:TemplateField HeaderText="Training Status" ItemStyle-CssClass="status-cell-container">
+                                <asp:TemplateField HeaderText="End Date" HeaderStyle-Width="10%" ItemStyle-CssClass="text-nowrap" SortExpression="ENDDATE">
+                                    <ItemTemplate>
+                                        <span class="text-muted text-nowrap"><i class="far fa-calendar-alt mr-1"></i><%# Eval("ENDDATE") != DBNull.Value && Eval("ENDDATE") != null ? string.Format("{0:dd/MM/yyyy}", Eval("ENDDATE")) : "" %></span>
+                                    </ItemTemplate>
+                                </asp:TemplateField>
+
+                                <asp:TemplateField HeaderText="Training Status" HeaderStyle-Width="17%" ItemStyle-CssClass="status-cell-container" SortExpression="STATUS_DESC">
                                     <ItemTemplate>
                                         <div style="position: relative; display: flex; align-items: center; width: 100%;">
                                             <asp:DropDownList ID="ddlRowStatus" runat="server" CssClass="status-dropdown" AutoPostBack="true" OnSelectedIndexChanged="ddlRowStatus_SelectedIndexChanged">
@@ -553,10 +630,27 @@
             // Display currently selected option text inside the main field
             function updateFieldText() {
                 var $selectedOpt = $select.find('option:selected');
-                var text = ($selectedOpt.length) ? $selectedOpt.text() : ($select.find('option').first().text() || "-- All --");
+                var text = ($selectedOpt.length && $selectedOpt.val() !== "") ? $selectedOpt.text() : ($select.find('option').first().text() || "-- All --");
                 $field.find('.combobox-selected-text').text(text);
             }
             updateFieldText();
+
+            function selectOption(val, text) {
+                var $opt = $select.find('option').filter(function () { return $(this).val() === val; });
+                if ($opt.length === 0) {
+                    $select.append(new Option(text, val));
+                }
+                $select.val(val);
+                updateFieldText();
+                $drop.addClass('d-none');
+
+                var controlName = $select.attr('name') || selectId;
+                if (typeof __doPostBack === 'function') {
+                    __doPostBack(controlName, '');
+                } else {
+                    $select.trigger('change');
+                }
+            }
 
             // Populate option list filtered by search input inside dropdown popup
             function populateListItems(filterText) {
@@ -575,10 +669,7 @@
                         }
                         $item.on('mousedown', function (e) {
                             e.preventDefault();
-                            $select.val(val);
-                            updateFieldText();
-                            $drop.addClass('d-none');
-                            __doPostBack(selectId, '');
+                            selectOption(val, text);
                         });
                         $list.append($item);
                         count++;
@@ -611,59 +702,13 @@
         }
 
         function initSearchableDropdowns() {
-            ['ddlCourseType', 'ddlCourseCategory', 'ddlFilterStatus'].forEach(function (id) {
+            ['ddlCourseType', 'ddlCourseCategory', 'ddlCourseName', 'ddlFilterStatus'].forEach(function (id) {
                 setupSearchableDropdown(id);
             });
 
-            var $input = $('#txtCourseName');
-            var $suggestions = $('#courseNameSuggestions');
-            var timeoutId = null;
-
-            $input.off('keyup focus').on('keyup focus', function () {
-                var query = $(this).val();
-                clearTimeout(timeoutId);
-
-                if (query.length < 1) {
-                    $suggestions.addClass('d-none').empty();
-                    return;
-                }
-
-                timeoutId = setTimeout(function () {
-                    $.ajax({
-                        type: "POST",
-                        url: "TrainingStatus.aspx/GetCourseNames",
-                        data: JSON.stringify({ query: query }),
-                        contentType: "application/json; charset=utf-8",
-                        dataType: "json",
-                        success: function (response) {
-                            var list = response.d;
-                            $suggestions.empty();
-                            if (list && list.length > 0) {
-                                $.each(list, function (i, item) {
-                                    $('<div class="autocomplete-suggestion"></div>')
-                                        .text(item)
-                                        .appendTo($suggestions)
-                                        .on('click', function () {
-                                            $input.val(item).trigger('change');
-                                            $suggestions.addClass('d-none').empty();
-                                        });
-                                });
-                                $suggestions.removeClass('d-none');
-                            } else {
-                                $suggestions.addClass('d-none').empty();
-                            }
-                        },
-                        error: function () {
-                            $suggestions.addClass('d-none').empty();
-                        }
-                    });
-                }, 250);
-            });
-
             $(document).off('click.combobox').on('click.combobox', function (e) {
-                if (!$(e.target).closest('.combobox-container, #txtCourseName, #courseNameSuggestions').length) {
+                if (!$(e.target).closest('.combobox-container').length) {
                     $('.combobox-dropdown').addClass('d-none');
-                    $suggestions.addClass('d-none');
                 }
             });
 

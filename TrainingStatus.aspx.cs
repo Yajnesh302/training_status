@@ -36,8 +36,18 @@ namespace TrainingStatusPortal
         {
             if (!IsPostBack)
             {
+                ViewState["SortExpression"] = "EMP_NAME";
+                ViewState["SortDirection"] = "ASC";
                 PopulateFilterDropdowns();
                 BindGrid();
+            }
+            else
+            {
+                if (ddlCourseType.Items.Count <= 1 || ddlCourseCategory.Items.Count <= 1 || 
+                    ddlCourseName.Items.Count <= 1 || ddlFilterStatus.Items.Count <= 1)
+                {
+                    PopulateFilterDropdowns();
+                }
             }
         }
 
@@ -61,18 +71,19 @@ namespace TrainingStatusPortal
 
         protected void Filter_Changed(object sender, EventArgs e)
         {
+            HideAlert();
             gvTraining.PageIndex = 0;
             BindGrid();
         }
 
         private void PopulateFilterDropdowns()
         {
+            // 1. Course Type Dropdown
             try
             {
-                // 1. Course Type Dropdown
                 string typeQuery = string.Format("SELECT DISTINCT coursetype FROM {0} ORDER BY coursetype NULLS FIRST", TrainingTableName);
                 DataTable dtTypes = DBHelper.ExecuteQuery(DBHelper.GetHRIMSConnectionString(), typeQuery);
-                
+
                 ddlCourseType.Items.Clear();
                 ddlCourseType.Items.Add(new ListItem("-- All Course Types --", ""));
                 ddlCourseType.Items.Add(new ListItem("(Blank / NULL)", "BLANK"));
@@ -81,12 +92,22 @@ namespace TrainingStatusPortal
                 {
                     if (row["coursetype"] != DBNull.Value && !string.IsNullOrEmpty(row["coursetype"].ToString()))
                     {
-                        string val = row["coursetype"].ToString();
-                        ddlCourseType.Items.Add(new ListItem(val, val));
+                        string val = row["coursetype"].ToString().Trim();
+                        if (ddlCourseType.Items.FindByValue(val) == null)
+                        {
+                            ddlCourseType.Items.Add(new ListItem(val, val));
+                        }
                     }
                 }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("CourseType load notice: " + ex.Message);
+            }
 
-                // 2. Course Category Dropdown
+            // 2. Course Category Dropdown
+            try
+            {
                 string catQuery = string.Format("SELECT code, description FROM {0} ORDER BY code", CourseCategoryTableName);
                 DataTable dtCat = DBHelper.ExecuteQuery(DBHelper.GetHRIMSConnectionString(), catQuery);
 
@@ -96,8 +117,15 @@ namespace TrainingStatusPortal
                 {
                     ddlCourseCategory.Items.Add(new ListItem(row["description"].ToString(), row["code"].ToString()));
                 }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("CourseCategory load notice: " + ex.Message);
+            }
 
-                // 3. Training Status Filter Dropdown
+            // 3. Training Status Filter Dropdown
+            try
+            {
                 string statusQuery = string.Format("SELECT code, description FROM {0} ORDER BY code", TrainingStatusTableName);
                 DataTable dtStatus = DBHelper.ExecuteQuery(DBHelper.GetHRIMSConnectionString(), statusQuery);
 
@@ -110,7 +138,32 @@ namespace TrainingStatusPortal
             }
             catch (Exception ex)
             {
-                ShowAlert("Database Initialization Error: " + ex.Message, "alert-danger");
+                System.Diagnostics.Debug.WriteLine("TrainingStatus load notice: " + ex.Message);
+            }
+
+            // 4. Course Name Filter Dropdown
+            try
+            {
+                string nameQuery = string.Format("SELECT DISTINCT coursename FROM {0} WHERE coursename IS NOT NULL ORDER BY coursename", TrainingTableName);
+                DataTable dtNames = DBHelper.ExecuteQuery(DBHelper.GetHRIMSConnectionString(), nameQuery);
+
+                ddlCourseName.Items.Clear();
+                ddlCourseName.Items.Add(new ListItem("-- All Course Names --", ""));
+                foreach (DataRow row in dtNames.Rows)
+                {
+                    if (row["coursename"] != DBNull.Value && !string.IsNullOrEmpty(row["coursename"].ToString()))
+                    {
+                        string val = row["coursename"].ToString().Trim();
+                        if (ddlCourseName.Items.FindByValue(val) == null)
+                        {
+                            ddlCourseName.Items.Add(new ListItem(val, val));
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("CourseName load notice: " + ex.Message);
             }
         }
 
@@ -156,10 +209,10 @@ namespace TrainingStatusPortal
                     parameters.Add(new OracleParameter("course_category", Convert.ToInt32(ddlCourseCategory.SelectedValue)));
                 }
 
-                if (!string.IsNullOrEmpty(txtCourseName.Text.Trim()))
+                if (!string.IsNullOrEmpty(ddlCourseName.SelectedValue))
                 {
-                    query += " AND LOWER(t.coursename) LIKE :coursename";
-                    parameters.Add(new OracleParameter("coursename", "%" + txtCourseName.Text.Trim().ToLower() + "%"));
+                    query += " AND t.coursename = :coursename";
+                    parameters.Add(new OracleParameter("coursename", ddlCourseName.SelectedValue));
                 }
 
                 if (!string.IsNullOrEmpty(ddlFilterStatus.SelectedValue))
@@ -206,7 +259,16 @@ namespace TrainingStatusPortal
                     }
                 }
 
-                gvTraining.DataSource = dt;
+                DataView dv = dt.DefaultView;
+                string sortExpr = ViewState["SortExpression"] as string ?? "EMP_NAME";
+                string sortDir = ViewState["SortDirection"] as string ?? "ASC";
+
+                if (dt.Columns.Contains(sortExpr))
+                {
+                    dv.Sort = string.Format("{0} {1}", sortExpr, sortDir);
+                }
+
+                gvTraining.DataSource = dv;
                 gvTraining.DataBind();
 
                 lblRecordCount.Text = dt.Rows.Count + " Record(s) Found";
@@ -215,6 +277,26 @@ namespace TrainingStatusPortal
             {
                 ShowAlert("Error Loading Training Records: " + ex.Message, "alert-danger");
             }
+        }
+
+        protected void gvTraining_Sorting(object sender, GridViewSortEventArgs e)
+        {
+            HideAlert();
+            string currentSortExpr = ViewState["SortExpression"] as string ?? "EMP_NAME";
+            string currentSortDir = ViewState["SortDirection"] as string ?? "ASC";
+
+            if (currentSortExpr.Equals(e.SortExpression, StringComparison.OrdinalIgnoreCase))
+            {
+                ViewState["SortDirection"] = currentSortDir == "ASC" ? "DESC" : "ASC";
+            }
+            else
+            {
+                ViewState["SortExpression"] = e.SortExpression;
+                ViewState["SortDirection"] = "ASC";
+            }
+
+            gvTraining.PageIndex = 0;
+            BindGrid();
         }
 
         private string GetEmployeeNameByPCNO(string pcno)
@@ -237,6 +319,7 @@ namespace TrainingStatusPortal
 
         protected void btnSearch_Click(object sender, EventArgs e)
         {
+            HideAlert();
             gvTraining.PageIndex = 0;
             BindGrid();
         }
@@ -245,10 +328,13 @@ namespace TrainingStatusPortal
         {
             ddlCourseType.SelectedIndex = 0;
             ddlCourseCategory.SelectedIndex = 0;
+            ddlCourseName.SelectedIndex = 0;
             ddlFilterStatus.SelectedIndex = 0;
-            txtCourseName.Text = string.Empty;
             txtStartDate.Text = string.Empty;
             txtEndDate.Text = string.Empty;
+
+            ViewState["SortExpression"] = "EMP_NAME";
+            ViewState["SortDirection"] = "ASC";
 
             gvTraining.PageIndex = 0;
             BindGrid();
@@ -257,13 +343,42 @@ namespace TrainingStatusPortal
 
         protected void gvTraining_PageIndexChanging(object sender, GridViewPageEventArgs e)
         {
+            HideAlert();
             gvTraining.PageIndex = e.NewPageIndex;
             BindGrid();
         }
 
         protected void gvTraining_RowDataBound(object sender, GridViewRowEventArgs e)
         {
-            if (e.Row.RowType == DataControlRowType.DataRow)
+            if (e.Row.RowType == DataControlRowType.Header)
+            {
+                string currentSortExpr = ViewState["SortExpression"] as string ?? "EMP_NAME";
+                string currentSortDir = ViewState["SortDirection"] as string ?? "ASC";
+
+                for (int i = 0; i < gvTraining.Columns.Count; i++)
+                {
+                    DataControlField col = gvTraining.Columns[i];
+                    if (!string.IsNullOrEmpty(col.SortExpression))
+                    {
+                        TableCell cell = e.Row.Cells[i];
+                        LinkButton btnSort = cell.Controls.Count > 0 ? cell.Controls[0] as LinkButton : null;
+
+                        string arrowCss = "fas fa-sort text-white-50 float-right ml-1";
+                        if (col.SortExpression.Equals(currentSortExpr, StringComparison.OrdinalIgnoreCase))
+                        {
+                            arrowCss = currentSortDir == "ASC" ? "fas fa-sort-up text-warning float-right ml-1" : "fas fa-sort-down text-warning float-right ml-1";
+                        }
+
+                        if (btnSort != null)
+                        {
+                            string headerTitle = col.HeaderText;
+                            btnSort.CssClass = "text-white font-weight-bold text-decoration-none d-flex align-items-center justify-content-between w-100";
+                            btnSort.Text = string.Format("<span>{0}</span> <i class=\"{1}\"></i>", Server.HtmlEncode(headerTitle), arrowCss);
+                        }
+                    }
+                }
+            }
+            else if (e.Row.RowType == DataControlRowType.DataRow)
             {
                 DropDownList ddlRowStatus = (DropDownList)e.Row.FindControl("ddlRowStatus");
                 HiddenField hfCurrentStatus = (HiddenField)e.Row.FindControl("hfCurrentStatus");
@@ -276,9 +391,24 @@ namespace TrainingStatusPortal
                         string statusQuery = string.Format("SELECT code, description FROM {0} ORDER BY code", TrainingStatusTableName);
                         DataTable dtStatus = DBHelper.ExecuteQuery(DBHelper.GetHRIMSConnectionString(), statusQuery);
 
-                        foreach (DataRow statusRow in dtStatus.Rows)
+                        if (dtStatus != null && dtStatus.Rows.Count > 0)
                         {
-                            ddlRowStatus.Items.Add(new ListItem(statusRow["description"].ToString(), statusRow["code"].ToString()));
+                            foreach (DataRow statusRow in dtStatus.Rows)
+                            {
+                                string desc = statusRow["description"].ToString();
+                                string val = statusRow["code"].ToString();
+                                ListItem item = new ListItem(desc, val);
+                                item.Attributes["title"] = desc;
+                                ddlRowStatus.Items.Add(item);
+                            }
+                        }
+                        else
+                        {
+                            ddlRowStatus.Items.Add(new ListItem("Nominated", "1"));
+                            ddlRowStatus.Items.Add(new ListItem("Done in OG", "2"));
+                            ddlRowStatus.Items.Add(new ListItem("Done in RG", "3"));
+                            ddlRowStatus.Items.Add(new ListItem("Ongoing", "4"));
+                            ddlRowStatus.Items.Add(new ListItem("Completed", "5"));
                         }
                     }
                     catch
@@ -294,6 +424,10 @@ namespace TrainingStatusPortal
                     if (!string.IsNullOrEmpty(currentStatus) && ddlRowStatus.Items.FindByValue(currentStatus) != null)
                     {
                         ddlRowStatus.SelectedValue = currentStatus;
+                    }
+                    if (ddlRowStatus.SelectedItem != null)
+                    {
+                        ddlRowStatus.ToolTip = ddlRowStatus.SelectedItem.Text;
                     }
                 }
             }
@@ -371,6 +505,12 @@ namespace TrainingStatusPortal
             lblAlertMessage.Text = message;
             pnlAlert.CssClass = "alert alert-dismissible fade show toast-card";
             pnlAlert.Visible = true;
+        }
+
+        private void HideAlert()
+        {
+            pnlAlert.Visible = false;
+            lblAlertMessage.Text = string.Empty;
         }
     }
 }
