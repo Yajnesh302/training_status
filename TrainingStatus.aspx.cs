@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Data;
 using Oracle.ManagedDataAccess.Client;
 using System.Configuration;
+using System.Web;
 using System.Web.Services;
 using System.Web.UI;
 using System.Web.UI.WebControls;
@@ -500,6 +501,154 @@ namespace TrainingStatusPortal
             return list;
         }
 
+        [WebMethod]
+        public static CourseDetailsDTO GetCourseDetailsByName(string courseName)
+        {
+            CourseDetailsDTO details = new CourseDetailsDTO();
+            if (string.IsNullOrEmpty(courseName)) return details;
+
+            try
+            {
+                string sql = string.Format(@"
+                    SELECT coursetype, startdate, enddate 
+                    FROM {0} 
+                    WHERE coursename = :coursename AND ROWNUM <= 1", TrainingTableName);
+
+                DataTable dt = DBHelper.ExecuteQuery(DBHelper.GetHRIMSConnectionString(), sql, new OracleParameter("coursename", courseName));
+                if (dt != null && dt.Rows.Count > 0)
+                {
+                    DataRow r = dt.Rows[0];
+                    details.CourseName = courseName;
+                    details.CourseType = r["coursetype"] != DBNull.Value ? r["coursetype"].ToString() : "";
+
+                    if (r["startdate"] != DBNull.Value && r["startdate"] != null)
+                    {
+                        details.StartDate = Convert.ToDateTime(r["startdate"]).ToString("dd/MM/yyyy");
+                    }
+                    if (r["enddate"] != DBNull.Value && r["enddate"] != null)
+                    {
+                        details.EndDate = Convert.ToDateTime(r["enddate"]).ToString("dd/MM/yyyy");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("Error getting course details: " + ex.Message);
+            }
+
+            return details;
+        }
+
+        [WebMethod]
+        public static List<OfficerDTO> GetDivisionOfficers(string userPcno)
+        {
+            List<OfficerDTO> officers = new List<OfficerDTO>();
+            if (string.IsNullOrEmpty(userPcno))
+            {
+                if (HttpContext.Current != null && HttpContext.Current.Session != null && HttpContext.Current.Session["PCNO"] != null)
+                {
+                    userPcno = HttpContext.Current.Session["PCNO"].ToString();
+                }
+            }
+
+            string userDiv = "";
+            if (!string.IsNullOrEmpty(userPcno))
+            {
+                try
+                {
+                    string divSql = "SELECT DIVNAME FROM hrdata.empdetails WHERE PCNO = :PCNO AND ROWNUM <= 1";
+                    object res = DBHelper.ExecuteScalar(DBHelper.GetHRDATAConnectionString(), divSql, new OracleParameter("PCNO", userPcno));
+                    if (res != null && res != DBNull.Value)
+                    {
+                        userDiv = res.ToString().Trim();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine("Error getting user div: " + ex.Message);
+                }
+            }
+
+            string divPrefix = userDiv;
+            if (divPrefix.Contains("/"))
+            {
+                divPrefix = divPrefix.Split('/')[0].Trim();
+            }
+
+            try
+            {
+                List<OracleParameter> pList = new List<OracleParameter>();
+                string sql = @"
+                    SELECT e.PCNO, e.NAME, e.DESIGNATION, NVL(d.desigcode, 
+                        CASE e.DESIGNATION 
+                            WHEN 'Sc H' THEN 10 
+                            WHEN 'Sc G' THEN 20 
+                            WHEN 'Sc F' THEN 30 
+                            ELSE 99 
+                        END) AS DESIG_RANK
+                    FROM hrdata.empdetails e
+                    LEFT JOIN hrims.hr_designations d ON UPPER(TRIM(e.DESIGNATION)) = UPPER(TRIM(d.designation))
+                    WHERE (UPPER(TRIM(e.DESIGNATION)) IN ('SC H', 'SC G', 'SC F') 
+                       OR UPPER(TRIM(e.DESIGNATION)) LIKE 'SC H%'
+                       OR UPPER(TRIM(e.DESIGNATION)) LIKE 'SC G%'
+                       OR UPPER(TRIM(e.DESIGNATION)) LIKE 'SC F%')";
+
+                if (!string.IsNullOrEmpty(divPrefix))
+                {
+                    sql += " AND UPPER(e.DIVNAME) LIKE :divPrefix";
+                    pList.Add(new OracleParameter("divPrefix", divPrefix.ToUpper() + "%"));
+                }
+
+                sql += " ORDER BY DESIG_RANK ASC, e.NAME ASC";
+
+                DataTable dt = DBHelper.ExecuteQuery(DBHelper.GetHRDATAConnectionString(), sql, pList.ToArray());
+
+                if ((dt == null || dt.Rows.Count == 0) && !string.IsNullOrEmpty(divPrefix))
+                {
+                    string fallbackSql = @"
+                        SELECT e.PCNO, e.NAME, e.DESIGNATION, NVL(d.desigcode, 
+                            CASE e.DESIGNATION 
+                                WHEN 'Sc H' THEN 10 
+                                WHEN 'Sc G' THEN 20 
+                                WHEN 'Sc F' THEN 30 
+                                ELSE 99 
+                            END) AS DESIG_RANK
+                        FROM hrdata.empdetails e
+                        LEFT JOIN hrims.hr_designations d ON UPPER(TRIM(e.DESIGNATION)) = UPPER(TRIM(d.designation))
+                        WHERE (UPPER(TRIM(e.DESIGNATION)) IN ('SC H', 'SC G', 'SC F') 
+                           OR UPPER(TRIM(e.DESIGNATION)) LIKE 'SC H%'
+                           OR UPPER(TRIM(e.DESIGNATION)) LIKE 'SC G%'
+                           OR UPPER(TRIM(e.DESIGNATION)) LIKE 'SC F%')
+                        ORDER BY DESIG_RANK ASC, e.NAME ASC";
+                    dt = DBHelper.ExecuteQuery(DBHelper.GetHRDATAConnectionString(), fallbackSql);
+                }
+
+                if (dt != null)
+                {
+                    foreach (DataRow row in dt.Rows)
+                    {
+                        string p = row["PCNO"] != DBNull.Value ? row["PCNO"].ToString() : "";
+                        string n = row["NAME"] != DBNull.Value ? row["NAME"].ToString() : "";
+                        string des = row["DESIGNATION"] != DBNull.Value ? row["DESIGNATION"].ToString() : "";
+
+                        officers.Add(new OfficerDTO
+                        {
+                            Pcno = p,
+                            Name = n,
+                            Designation = des,
+                            FormattedText = string.Format("{0} ({1})", n, des)
+                        });
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("Error querying officers: " + ex.Message);
+            }
+
+            return officers;
+        }
+
         private void ShowAlert(string message, string alertCssClass)
         {
             lblAlertMessage.Text = message;
@@ -512,5 +661,21 @@ namespace TrainingStatusPortal
             pnlAlert.Visible = false;
             lblAlertMessage.Text = string.Empty;
         }
+    }
+
+    public class OfficerDTO
+    {
+        public string Pcno { get; set; }
+        public string Name { get; set; }
+        public string Designation { get; set; }
+        public string FormattedText { get; set; }
+    }
+
+    public class CourseDetailsDTO
+    {
+        public string CourseName { get; set; }
+        public string CourseType { get; set; }
+        public string StartDate { get; set; }
+        public string EndDate { get; set; }
     }
 }
